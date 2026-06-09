@@ -1,6 +1,6 @@
 # codegraph-go
 
-Code intelligence tool for Go projects. Indexes a Go workspace into SQLite and exposes symbol search, call graph traversal, and trace queries — via an interactive CLI or as an MCP server for AI assistants (Claude Code, etc.).
+Code intelligence tool for multi-language projects. Indexes Go, TypeScript, JavaScript, and Python workspaces into SQLite and exposes symbol search, call graph traversal, and trace queries — via an interactive CLI or as an MCP server for AI assistants (Claude Code, etc.).
 
 Zero CGo. Single static binary.
 
@@ -9,7 +9,7 @@ Zero CGo. Single static binary.
 ## Install
 
 ```bash
-go install github.com/ogatalars/codegraph-go@latest
+go install github.com/ogatalars/codegraph-go/cmd/codegraph@latest
 ```
 
 Or build from source:
@@ -17,10 +17,10 @@ Or build from source:
 ```bash
 git clone git@github.com:ogatalars/codegraph-go.git
 cd codegraph-go
-go build -o codegraph .
+go build -o codegraph ./cmd/codegraph/
 ```
 
-Requires `go` in PATH (needed to load and type-check packages).
+Requires `go` in PATH (needed to load and type-check Go packages).
 
 ---
 
@@ -50,7 +50,7 @@ codegraph>
 
 ```
 search <name> [kind]       search symbols by name (substring match)
-                           kind: func | method | struct | interface | type | var | const
+                           kind: func | method | struct | interface | type | var | const | class
 
 node <fqn>                 full detail for a symbol
 
@@ -75,45 +75,50 @@ exit                       quit
 
 ```
 codegraph> status
-files: 8  symbols: 47  edges: 112
+files: 934  symbols: 2765  edges: 205
 
-codegraph> search Index
-  github.com/ogatalars/codegraph-go/internal/indexer.(*Indexer).Index  (method)  internal/indexer/indexer.go:24
+codegraph> search fetchUser
+  src/modules/user/api.ts::fetchUser  (func)  src/modules/user/api.ts:12
+  src/modules/user/api.ts::fetchUserById  (func)  src/modules/user/api.ts:28
 
-codegraph> node github.com/ogatalars/codegraph-go/internal/indexer.(*Indexer).Index
-fqn:  github.com/ogatalars/codegraph-go/internal/indexer.(*Indexer).Index
-kind: method
-file: internal/indexer/indexer.go:24
-sig:  func (*Indexer) Index(root string) error
+codegraph> node src/modules/user/api.ts::fetchUser
+fqn:  src/modules/user/api.ts::fetchUser
+kind: func
+file: src/modules/user/api.ts:12
 
-codegraph> callers github.com/ogatalars/codegraph-go/internal/indexer.(*Indexer).Index
-  main.main → github.com/ogatalars/codegraph-go/internal/indexer.(*Indexer).Index
+codegraph> search HandleRequest
+  github.com/myorg/myapp/internal/http.(*Server).HandleRequest  (method)  internal/http/server.go:42
 
-codegraph> callees github.com/ogatalars/codegraph-go/internal/indexer.(*Indexer).Index
-  github.com/ogatalars/codegraph-go/internal/indexer.(*Indexer).Index → golang.org/x/tools/go/packages.Load
-  github.com/ogatalars/codegraph-go/internal/indexer.(*Indexer).Index → github.com/ogatalars/codegraph-go/internal/indexer.ExtractPackage
-  ...
+codegraph> callers github.com/myorg/myapp/internal/http.(*Server).HandleRequest
+  github.com/myorg/myapp/cmd/server.main → github.com/myorg/myapp/internal/http.(*Server).HandleRequest
 
-codegraph> trace main.main github.com/ogatalars/codegraph-go/internal/store.(*Store).InsertSymbol
-  [0] main.main
-  [1] github.com/ogatalars/codegraph-go/internal/indexer.(*Indexer).Index
-  [2] github.com/ogatalars/codegraph-go/internal/store.(*Store).InsertSymbol
+codegraph> trace github.com/myorg/myapp/cmd/server.main github.com/myorg/myapp/internal/store.(*Store).Query
+  [0] github.com/myorg/myapp/cmd/server.main
+  [1] github.com/myorg/myapp/internal/http.(*Server).HandleRequest
+  [2] github.com/myorg/myapp/internal/store.(*Store).Query
 ```
 
 ### FQN format
 
-Fully qualified names follow the pattern:
+FQN format depends on the language:
 
+**Go** — resolved via `go/types`, cross-package:
 ```
-<import-path>.<Symbol>              # func, type, var, const
-<import-path>.(*ReceiverType).<Method>   # pointer receiver method
-<import-path>.(ReceiverType).<Method>    # value receiver method
-```
+<import-path>.<Symbol>
+<import-path>.(*ReceiverType).<Method>
+<import-path>.(ReceiverType).<Method>
 
-Examples:
-```
 github.com/myorg/myapp/internal/auth.Authenticate
 github.com/myorg/myapp/internal/auth.(*Handler).ServeHTTP
+```
+
+**TypeScript / JavaScript / Python** — file-relative:
+```
+<rel-file-path>::<SymbolName>
+
+src/modules/auth/index.ts::authenticate
+src/utils/api.ts::fetchUser
+scripts/migrate.py::run_migration
 ```
 
 ---
@@ -147,38 +152,36 @@ Or pass flags directly:
 ./codegraph --mcp --root /path/to/your/project
 ```
 
-> MCP server implementation is in progress (v1 CLI is complete).
+> MCP server implementation is in progress (CLI is complete).
 
 ---
 
 ## How it works
 
-1. **Index** — uses `golang.org/x/tools/go/packages` to load packages with full type info. Walks AST to extract symbols and resolves call targets cross-package via `types.Info`.
+1. **Index** — two-phase walk:
+   - Go files: `golang.org/x/tools/go/packages` with full type info. Call edges resolved cross-package via `types.Info`.
+   - TS/JS/Python files: regex-based symbol extraction. No CGo, no external tools required.
 2. **Store** — SQLite (pure Go, `modernc.org/sqlite`). Three tables: `files`, `symbols`, `edges`.
 3. **Query** — direct SQL for search/callers/callees; BFS over edge queries for `trace`.
 
 ### What gets indexed
 
-| AST node | Symbol kind |
-|---|---|
-| `FuncDecl` (no receiver) | `func` |
-| `FuncDecl` (with receiver) | `method` |
-| `TypeSpec` + `StructType` | `struct` |
-| `TypeSpec` + `InterfaceType` | `interface` |
-| `TypeSpec` (other) | `type` |
-| `ValueSpec` in `var` block | `var` |
-| `ValueSpec` in `const` block | `const` |
+| Language | Symbols | Call edges |
+|---|---|---|
+| Go | func, method, struct, interface, type, var, const | Yes (cross-package, type-resolved) |
+| TypeScript / JavaScript | func, arrow fn, class, interface, type, enum, method | No (v1) |
+| Python | def, class | No (v1) |
 
-Call edges are resolved to their canonical import path using `types.Info.Uses`, so cross-package calls (e.g. `http.ListenAndServe`) are correctly attributed.
+Skipped directories: `vendor`, `node_modules`, `testdata`, `dist`, `build`, `.next`, `__pycache__`, `.venv`.
 
 ---
 
 ## Limitations (v1)
 
-- Go only (no TypeScript, Python, etc.)
+- Go call edges only — TS/JS/Python symbols indexed but no call graph
 - No file watcher — re-run `index` after code changes
-- Generics: type parameters appear in symbols but instantiation edges are not tracked
-- Interface `implements` edges not yet detected (call edges only)
+- Generics: type parameters appear in symbols but instantiation edges not tracked
+- Interface `implements` edges not yet detected
 - Closures attributed to their enclosing named function
 
 ---
@@ -187,6 +190,7 @@ Call edges are resolved to their canonical import path using `types.Info.Uses`, 
 
 - [ ] MCP server (8 tools: search, node, callers, callees, trace, files, status, index)
 - [ ] File watcher for incremental re-index
-- [ ] `implements` edge detection
+- [ ] Call edges for TypeScript via regex heuristic
+- [ ] `implements` edge detection for Go
 - [ ] `codegraph_context` composite tool (search + node + callers + callees in one call)
 - [ ] `codegraph_impact` (what breaks if symbol X changes)
