@@ -5,6 +5,7 @@ import (
 	"strings"
 )
 
+
 func init() {
 	registerExtractor(&pyExtractor{})
 }
@@ -21,8 +22,6 @@ var (
 )
 
 func (p *pyExtractor) Extract(relPath string, content []byte) ([]Symbol, []Edge, error) {
-	full := string(content)
-	lines := strings.Split(full, "\n")
 	var symbols []Symbol
 
 	add := func(name, kind string, lineIdx int) {
@@ -38,23 +37,23 @@ func (p *pyExtractor) Extract(relPath string, content []byte) ([]Symbol, []Edge,
 		})
 	}
 
-	for _, re := range []struct {
-		r    *regexp.Regexp
+	full := string(content)
+	for _, entry := range []struct {
+		re   *regexp.Regexp
 		kind string
 	}{
 		{pyFunc, "func"},
 		{pyClass, "class"},
 	} {
-		for _, m := range re.r.FindAllStringSubmatchIndex(full, -1) {
+		for _, m := range entry.re.FindAllStringSubmatchIndex(full, -1) {
 			if len(m) < 4 || m[2] < 0 {
 				continue
 			}
 			name := full[m[2]:m[3]]
 			line := strings.Count(full[:m[0]], "\n")
-			add(name, re.kind, line)
+			add(name, entry.kind, line)
 		}
 	}
 
-	_ = lines
 	return symbols, nil, nil
 }

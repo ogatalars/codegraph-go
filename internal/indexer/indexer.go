@@ -61,8 +61,8 @@ func (idx *Indexer) indexGoPackages(absRoot string, now int64) error {
 		fileDataMap := ExtractPackage(pkg)
 
 		for filePath, data := range fileDataMap {
-			relPath, _ := filepath.Rel(absRoot, filePath)
-			if relPath == "" {
+			relPath, err := filepath.Rel(absRoot, filePath)
+			if err != nil {
 				relPath = filePath
 			}
 			if err := idx.insertFileData(relPath, data.PkgName, now, data.Symbols, data.Edges); err != nil {
@@ -100,8 +100,8 @@ func (idx *Indexer) indexOtherFiles(absRoot string, now int64) error {
 			return nil
 		}
 
-		relPath, _ := filepath.Rel(absRoot, path)
-		if relPath == "" {
+		relPath, err := filepath.Rel(absRoot, path)
+		if err != nil {
 			relPath = path
 		}
 
@@ -126,7 +126,7 @@ func (idx *Indexer) insertFileData(relPath, pkg string, now int64, symbols []Sym
 	}
 
 	for _, sym := range symbols {
-		_ = idx.store.InsertSymbol(store.InsertSymbolParams{
+		if err := idx.store.InsertSymbol(store.InsertSymbolParams{
 			FileID:    fileID,
 			Name:      sym.Name,
 			FQN:       sym.FQN,
@@ -135,17 +135,21 @@ func (idx *Indexer) insertFileData(relPath, pkg string, now int64, symbols []Sym
 			Col:       sym.Col,
 			Signature: sym.Signature,
 			Docstring: sym.Docstring,
-		})
+		}); err != nil {
+			fmt.Fprintf(os.Stderr, "warn: insert symbol %s: %v\n", sym.FQN, err)
+		}
 	}
 
 	for _, edge := range edges {
-		_ = idx.store.InsertEdge(store.InsertEdgeParams{
+		if err := idx.store.InsertEdge(store.InsertEdgeParams{
 			FromFQN: edge.FromFQN,
 			ToFQN:   edge.ToFQN,
 			Kind:    edge.Kind,
 			FileID:  fileID,
 			Line:    edge.Line,
-		})
+		}); err != nil {
+			fmt.Fprintf(os.Stderr, "warn: insert edge %s->%s: %v\n", edge.FromFQN, edge.ToFQN, err)
+		}
 	}
 	return nil
 }

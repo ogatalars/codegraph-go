@@ -25,24 +25,19 @@ func (s *Store) Close() error {
 	return s.db.Close()
 }
 
-// --- write methods ---
 
 func (s *Store) UpsertFile(path, pkg string, indexedAt int64) (int64, error) {
-	res, err := s.db.Exec(
+	_, err := s.db.Exec(
 		`INSERT INTO files(path, pkg, indexed_at) VALUES(?,?,?)
-		 ON CONFLICT(path) DO UPDATE SET pkg=excluded.pkg, indexed_at=excluded.indexed_at
-		 RETURNING id`,
+		 ON CONFLICT(path) DO UPDATE SET pkg=excluded.pkg, indexed_at=excluded.indexed_at`,
 		path, pkg, indexedAt,
 	)
 	if err != nil {
-		// fallback: query after upsert
-		var id int64
-		if e2 := s.db.QueryRow(`SELECT id FROM files WHERE path=?`, path).Scan(&id); e2 != nil {
-			return 0, err
-		}
-		return id, nil
+		return 0, err
 	}
-	return res.LastInsertId()
+	var id int64
+	err = s.db.QueryRow(`SELECT id FROM files WHERE path=?`, path).Scan(&id)
+	return id, err
 }
 
 func (s *Store) InsertSymbol(sym InsertSymbolParams) error {
@@ -70,7 +65,6 @@ func (s *Store) DeleteFileData(fileID int64) error {
 	return err
 }
 
-// --- read methods ---
 
 func (s *Store) SearchSymbols(pattern, kind string, limit int) ([]SymbolRow, error) {
 	if limit <= 0 {
@@ -103,11 +97,17 @@ func (s *Store) GetSymbol(fqn string) (*SymbolRow, error) {
 }
 
 func (s *Store) GetCallers(fqn string) ([]EdgeRow, error) {
-	return s.scanEdges(`SELECT id,from_fqn,to_fqn,kind,file_id,line FROM edges WHERE to_fqn=?`, fqn)
+	return s.scanEdges(`
+		SELECT e.id,e.from_fqn,e.to_fqn,e.kind,e.file_id,e.line,f.path
+		FROM edges e JOIN files f ON f.id=e.file_id
+		WHERE e.to_fqn=?`, fqn)
 }
 
 func (s *Store) GetCallees(fqn string) ([]EdgeRow, error) {
-	return s.scanEdges(`SELECT id,from_fqn,to_fqn,kind,file_id,line FROM edges WHERE from_fqn=?`, fqn)
+	return s.scanEdges(`
+		SELECT e.id,e.from_fqn,e.to_fqn,e.kind,e.file_id,e.line,f.path
+		FROM edges e JOIN files f ON f.id=e.file_id
+		WHERE e.from_fqn=?`, fqn)
 }
 
 func (s *Store) GetFiles(prefix string) ([]FileRow, error) {
@@ -128,13 +128,16 @@ func (s *Store) GetFiles(prefix string) ([]FileRow, error) {
 }
 
 func (s *Store) GetStatus() (files, symbols, edges int, err error) {
-	_ = s.db.QueryRow(`SELECT COUNT(*) FROM files`).Scan(&files)
-	_ = s.db.QueryRow(`SELECT COUNT(*) FROM symbols`).Scan(&symbols)
-	_ = s.db.QueryRow(`SELECT COUNT(*) FROM edges`).Scan(&edges)
+	if err = s.db.QueryRow(`SELECT COUNT(*) FROM files`).Scan(&files); err != nil {
+		return
+	}
+	if err = s.db.QueryRow(`SELECT COUNT(*) FROM symbols`).Scan(&symbols); err != nil {
+		return
+	}
+	err = s.db.QueryRow(`SELECT COUNT(*) FROM edges`).Scan(&edges)
 	return
 }
 
-// --- helpers ---
 
 func (s *Store) scanSymbols(q string, args ...any) ([]SymbolRow, error) {
 	rows, err := s.db.Query(q, args...)
@@ -162,7 +165,7 @@ func (s *Store) scanEdges(q string, args ...any) ([]EdgeRow, error) {
 	var result []EdgeRow
 	for rows.Next() {
 		var r EdgeRow
-		if err := rows.Scan(&r.ID, &r.FromFQN, &r.ToFQN, &r.Kind, &r.FileID, &r.Line); err != nil {
+		if err := rows.Scan(&r.ID, &r.FromFQN, &r.ToFQN, &r.Kind, &r.FileID, &r.Line, &r.FilePath); err != nil {
 			return nil, err
 		}
 		result = append(result, r)
@@ -170,7 +173,6 @@ func (s *Store) scanEdges(q string, args ...any) ([]EdgeRow, error) {
 	return result, rows.Err()
 }
 
-// --- param / result types ---
 
 type InsertSymbolParams struct {
 	FileID    int64
@@ -205,12 +207,13 @@ type SymbolRow struct {
 }
 
 type EdgeRow struct {
-	ID      int64
-	FromFQN string
-	ToFQN   string
-	Kind    string
-	FileID  int64
-	Line    int
+	ID       int64
+	FromFQN  string
+	ToFQN    string
+	Kind     string
+	FileID   int64
+	Line     int
+	FilePath string
 }
 
 type FileRow struct {

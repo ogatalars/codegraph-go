@@ -12,12 +12,11 @@ type Config struct {
 	Root string
 }
 
-// Wizard prompts the user for mode and project root.
-// Returns the shared reader so REPL can reuse the same buffer.
 func Wizard() (*Config, *bufio.Reader, error) {
 	r := bufio.NewReader(os.Stdin)
 
-	fmt.Println("codegraph-go — code intelligence for AI\n")
+	fmt.Println("codegraph-go — code intelligence for AI")
+	fmt.Println()
 
 	mode, err := prompt(r, "Mode [cli/mcp] (default: cli): ", "cli")
 	if err != nil {

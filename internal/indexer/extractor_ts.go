@@ -26,7 +26,6 @@ var (
 )
 
 func (t *tsExtractor) Extract(relPath string, content []byte) ([]Symbol, []Edge, error) {
-	lines := splitLines(content)
 	var symbols []Symbol
 
 	add := func(name, kind string, lineIdx int) {
@@ -42,13 +41,20 @@ func (t *tsExtractor) Extract(relPath string, content []byte) ([]Symbol, []Edge,
 		})
 	}
 
-	extractAll(lines, tsFunc, "func", add)
-	extractAll(lines, tsArrow, "func", add)
-	extractAll(lines, tsClass, "class", add)
-	extractAll(lines, tsInterface, "interface", add)
-	extractAll(lines, tsType, "type", add)
-	extractAll(lines, tsEnum, "type", add)
-	extractAll(lines, tsMethod, "method", add)
+	for _, entry := range []struct {
+		re   *regexp.Regexp
+		kind string
+	}{
+		{tsFunc, "func"},
+		{tsArrow, "func"},
+		{tsClass, "class"},
+		{tsInterface, "interface"},
+		{tsType, "type"},
+		{tsEnum, "type"},
+		{tsMethod, "method"},
+	} {
+		extractAll(content, entry.re, entry.kind, add)
+	}
 
 	return symbols, nil, nil
 }
@@ -64,12 +70,9 @@ func isKeyword(name string) bool {
 	return tsKeywordSet[name]
 }
 
-func extractAll(lines []string, re *regexp.Regexp, kind string, add func(string, string, int)) {
-	full := strings.Join(lines, "\n")
-	matches := re.FindAllStringIndex(full, -1)
-	submatches := re.FindAllStringSubmatchIndex(full, -1)
-	_ = matches
-	for _, m := range submatches {
+func extractAll(content []byte, re *regexp.Regexp, kind string, add func(string, string, int)) {
+	full := string(content)
+	for _, m := range re.FindAllStringSubmatchIndex(full, -1) {
 		if len(m) < 4 || m[2] < 0 {
 			continue
 		}

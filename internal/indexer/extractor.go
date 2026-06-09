@@ -29,10 +29,12 @@ func ExtractPackage(pkg *packages.Package) map[string]*FileData {
 		pkgPath = pkg.Types.Path()
 	}
 
-	for i, file := range pkg.Syntax {
-		if i >= len(pkg.GoFiles) {
-			continue
-		}
+	n := len(pkg.GoFiles)
+	if len(pkg.Syntax) < n {
+		n = len(pkg.Syntax)
+	}
+	for i := 0; i < n; i++ {
+		file := pkg.Syntax[i]
 		filePath := pkg.GoFiles[i]
 
 		data := &FileData{PkgName: pkg.Name}

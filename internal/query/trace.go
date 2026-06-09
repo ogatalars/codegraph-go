@@ -10,7 +10,7 @@ type EdgeResult struct {
 	Line    int
 }
 
-func (e *Engine) Callers(fqn string, depth int) ([]EdgeResult, error) {
+func (e *Engine) Callers(fqn string, _ int) ([]EdgeResult, error) {
 	rows, err := e.store.GetCallers(fqn)
 	if err != nil {
 		return nil, err
@@ -18,7 +18,7 @@ func (e *Engine) Callers(fqn string, depth int) ([]EdgeResult, error) {
 	return toEdgeResults(rows), nil
 }
 
-func (e *Engine) Callees(fqn string, depth int) ([]EdgeResult, error) {
+func (e *Engine) Callees(fqn string, _ int) ([]EdgeResult, error) {
 	rows, err := e.store.GetCallees(fqn)
 	if err != nil {
 		return nil, err
@@ -70,6 +70,7 @@ func toEdgeResults(rows []store.EdgeRow) []EdgeResult {
 			ToFQN:   r.ToFQN,
 			Kind:    r.Kind,
 			Line:    r.Line,
+			File:    r.FilePath,
 		}
 	}
 	return result
