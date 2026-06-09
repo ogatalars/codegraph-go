@@ -8,6 +8,35 @@ Zero CGo. Single static binary. No Node.js required.
 
 ---
 
+## Current status
+
+**Working now:**
+
+| Feature | Status |
+|---|---|
+| Interactive CLI (wizard + REPL) | ✅ |
+| Index Go projects — symbols + cross-package call edges | ✅ |
+| Index TypeScript / JavaScript projects — symbols | ✅ |
+| Index Python projects — symbols | ✅ |
+| `search` — substring match across all languages | ✅ |
+| `node` — full symbol detail (file, line, signature, docstring) | ✅ |
+| `callers` / `callees` — call graph queries | ✅ Go only |
+| `trace` — shortest path A → B via BFS | ✅ Go only |
+| `files` — list indexed files by path prefix | ✅ |
+| `status` — index stats | ✅ |
+| `index` — re-index on demand | ✅ |
+
+**Not yet implemented:**
+
+| Feature | Status |
+|---|---|
+| MCP server | 🚧 in progress |
+| Call edges for TypeScript / JavaScript | 🔜 roadmap |
+| Call edges for Python | 🔜 roadmap |
+| File watcher (auto re-index on save) | 🔜 roadmap |
+
+---
+
 ## The problem
 
 AI agents exploring an unfamiliar codebase typically do this:
