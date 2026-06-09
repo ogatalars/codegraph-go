@@ -38,7 +38,7 @@ func main() {
 		return
 	}
 
-	cfg, err := cli.Wizard()
+	cfg, stdin, err := cli.Wizard()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -62,7 +62,7 @@ Then restart Claude Code.
 		log.Fatal("index:", err)
 	}
 
-	cli.REPL(q, idx, cfg.Root)
+	cli.REPL(q, idx, cfg.Root, stdin)
 }
 
 func startMCP(s *store.Store, idx *indexer.Indexer, q *query.Engine, root string) {

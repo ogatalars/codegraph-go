@@ -13,14 +13,15 @@ type Config struct {
 }
 
 // Wizard prompts the user for mode and project root.
-func Wizard() (*Config, error) {
+// Returns the shared reader so REPL can reuse the same buffer.
+func Wizard() (*Config, *bufio.Reader, error) {
 	r := bufio.NewReader(os.Stdin)
 
 	fmt.Println("codegraph-go — code intelligence for AI\n")
 
 	mode, err := prompt(r, "Mode [cli/mcp] (default: cli): ", "cli")
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	mode = strings.ToLower(mode)
 	if mode != "cli" && mode != "mcp" {
@@ -29,10 +30,10 @@ func Wizard() (*Config, error) {
 
 	root, err := prompt(r, "Project root (default: ./): ", "./")
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return &Config{Mode: mode, Root: root}, nil
+	return &Config{Mode: mode, Root: root}, r, nil
 }
 
 func prompt(r *bufio.Reader, question, defaultVal string) (string, error) {

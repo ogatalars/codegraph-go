@@ -3,16 +3,14 @@ package cli
 import (
 	"bufio"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/ogatalars/codegraph-go/internal/indexer"
 	"github.com/ogatalars/codegraph-go/internal/query"
 )
 
-// REPL runs an interactive command loop.
-func REPL(q *query.Engine, idx *indexer.Indexer, root string) {
-	r := bufio.NewReader(os.Stdin)
+// REPL runs an interactive command loop using the reader shared with Wizard.
+func REPL(q *query.Engine, idx *indexer.Indexer, root string, r *bufio.Reader) {
 	fmt.Printf("Ready. Root: %s\nType 'help' for commands.\n\n", root)
 
 	for {

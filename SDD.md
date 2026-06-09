@@ -2,23 +2,70 @@
 
 ## Objetivo
 
-CLI + MCP server em Go que indexa um workspace Go em SQLite e expõe tools de code intelligence para Claude (e qualquer AI via MCP). Zero CGo, zero Node.js, binary estático. Mesmo binário, dois modos de uso.
+CLI + MCP server em Go que indexa workspaces **multi-linguagem** (Go, TypeScript, JavaScript, Python) em SQLite e expõe tools de code intelligence para Claude (e qualquer AI via MCP). Zero CGo, zero Node.js, binary estático. Mesmo binário, dois modos de uso.
 
 ---
 
 ## Escopo v1
 
 **Inclui:**
-- Parse de arquivos `.go` com `go/ast` + `go/types`
+- Parse de arquivos `.go` com `go/ast` + `go/types` (symbols + call edges cross-package)
+- Parse de `.ts`/`.tsx`/`.js`/`.jsx` via regex (symbols; sem call edges)
+- Parse de `.py` via regex (symbols; sem call edges)
+- Interface `LangExtractor` plugável — fácil adicionar linguagens
 - Índice SQLite com símbolos e arestas do grafo
 - CLI interativo com prompt de setup (modo, projeto)
 - MCP server com 8 tools (mesmo binário, flag `--mcp`)
 - Re-index manual (sem file watcher)
 
 **Fora do escopo v1:**
-- Outras linguagens (só Go)
 - File watcher automático
+- Call edges para TS/JS/Python (só Go tem)
 - Suporte a múltiplos workspaces simultâneos
+
+---
+
+## Suporte Multi-Linguagem
+
+### Estratégia por linguagem
+
+| Linguagem | Extrator | Call edges | Deps extras | CGo |
+|---|---|---|---|---|
+| Go | `go/packages` + `go/ast` | Sim (type-resolved, cross-pkg) | nenhuma | Não |
+| TypeScript / JavaScript | regex | Não (v1) | nenhuma | Não |
+| Python | regex | Não (v1) | nenhuma | Não |
+
+Decisão: tree-sitter foi descartado (CGo). esbuild foi descartado (API interna instável). Regex cobre 80% dos casos relevantes para AI navigation com zero deps.
+
+### Interface plugável
+
+```go
+type LangExtractor interface {
+    Extensions() []string  // ex: []string{".ts", ".tsx"}
+    Extract(relPath string, content []byte) ([]Symbol, []Edge, error)
+}
+```
+
+Extractors registrados globalmente no `indexer`. Para adicionar linguagem nova: implementar interface e registrar.
+
+### FQN por linguagem
+
+- **Go**: `<import-path>.<Symbol>` / `<import-path>.(*Receiver).<Method>` (resolvido por `go/types`)
+- **TS/JS/Python**: `<rel-file-path>::<SymbolName>` (ex: `src/utils/api.ts::fetchUser`)
+
+### Símbolos extraídos por regex
+
+**TypeScript / JavaScript:**
+- `function name(` / `async function name(`
+- `export function` / `export default function`
+- `const name = (` / `const name = async (` (arrow functions)
+- `class Name` / `abstract class Name`
+- `interface Name`
+- `type Name =`
+
+**Python:**
+- `def name(` / `async def name(`
+- `class Name:`
 
 ---
 
