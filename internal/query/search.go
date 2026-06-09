@@ -27,26 +27,56 @@ type StatusResult struct {
 	Edges   int
 }
 
-// Search finds symbols by name (LIKE pattern).
 func (e *Engine) Search(pattern string, kind string, limit int) ([]SymbolResult, error) {
-	// TODO: implement
-	return nil, nil
+	rows, err := e.store.SearchSymbols(pattern, kind, limit)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]SymbolResult, len(rows))
+	for i, r := range rows {
+		result[i] = SymbolResult{
+			FQN:       r.FQN,
+			Kind:      r.Kind,
+			File:      r.FilePath,
+			Line:      r.Line,
+			Signature: r.Signature,
+			Docstring: r.Docstring,
+		}
+	}
+	return result, nil
 }
 
-// Node returns full detail for a single FQN.
 func (e *Engine) Node(fqn string) (*SymbolResult, error) {
-	// TODO: implement
-	return nil, nil
+	r, err := e.store.GetSymbol(fqn)
+	if err != nil || r == nil {
+		return nil, err
+	}
+	return &SymbolResult{
+		FQN:       r.FQN,
+		Kind:      r.Kind,
+		File:      r.FilePath,
+		Line:      r.Line,
+		Signature: r.Signature,
+		Docstring: r.Docstring,
+	}, nil
 }
 
-// Files lists files under a path prefix.
 func (e *Engine) Files(pathPrefix string) ([]string, error) {
-	// TODO: implement
-	return nil, nil
+	rows, err := e.store.GetFiles(pathPrefix)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]string, len(rows))
+	for i, r := range rows {
+		result[i] = r.Path
+	}
+	return result, nil
 }
 
-// Status returns index counts.
 func (e *Engine) Status() (*StatusResult, error) {
-	// TODO: implement
-	return nil, nil
+	files, symbols, edges, err := e.store.GetStatus()
+	if err != nil {
+		return nil, err
+	}
+	return &StatusResult{Files: files, Symbols: symbols, Edges: edges}, nil
 }
