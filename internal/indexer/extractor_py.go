@@ -21,6 +21,17 @@ var (
 	pyClass = regexp.MustCompile(`(?m)^class\s+(\w+)`)
 )
 
+var pyKeywords = map[string]bool{
+	"if": true, "for": true, "while": true, "elif": true, "else": true,
+	"return": true, "yield": true, "raise": true, "except": true,
+	"with": true, "assert": true, "del": true, "print": true,
+	"super": true, "isinstance": true, "issubclass": true,
+	"len": true, "range": true, "enumerate": true, "zip": true,
+	"map": true, "filter": true, "sorted": true, "list": true,
+	"dict": true, "set": true, "tuple": true, "str": true,
+	"int": true, "float": true, "bool": true, "type": true,
+}
+
 func (p *pyExtractor) Extract(relPath string, content []byte) ([]Symbol, []Edge, error) {
 	var symbols []Symbol
 
@@ -55,5 +66,8 @@ func (p *pyExtractor) Extract(relPath string, content []byte) ([]Symbol, []Edge,
 		}
 	}
 
-	return symbols, nil, nil
+	edges := intraFileCallEdges(relPath, splitLines(content), symbols, func(name string) bool {
+		return pyKeywords[name]
+	})
+	return symbols, edges, nil
 }

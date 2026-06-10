@@ -56,7 +56,8 @@ func (t *tsExtractor) Extract(relPath string, content []byte) ([]Symbol, []Edge,
 		extractAll(content, entry.re, entry.kind, add)
 	}
 
-	return symbols, nil, nil
+	edges := intraFileCallEdges(relPath, splitLines(content), symbols, isKeyword)
+	return symbols, edges, nil
 }
 
 // tsKeywords that look like identifiers but aren't symbols
