@@ -20,8 +20,8 @@ Zero CGo. Single static binary. No Node.js required.
 | Index Python projects — symbols | ✅ |
 | `search` — substring match across all languages | ✅ |
 | `node` — full symbol detail (file, line, signature, docstring) | ✅ |
-| `callers` / `callees` — call graph queries | ✅ Go only |
-| `trace` — shortest path A → B via BFS | ✅ Go only |
+| `callers` / `callees` — call graph queries | ✅ Go (cross-package) · TS/JS/Python (intra-file) |
+| `trace` — shortest path A → B via BFS | ✅ Go (cross-package) · TS/JS/Python (intra-file) |
 | `files` — list indexed files by path prefix | ✅ |
 | `status` — index stats | ✅ |
 | `index` — re-index on demand | ✅ |
@@ -31,8 +31,8 @@ Zero CGo. Single static binary. No Node.js required.
 | Feature | Status |
 |---|---|
 | MCP server | 🚧 in progress |
-| Call edges for TypeScript / JavaScript | 🔜 roadmap |
-| Call edges for Python | 🔜 roadmap |
+| Call edges for TS/JS/Python (intra-file) | ✅ |
+| Call edges for TS/JS/Python (cross-file) | 🔜 roadmap |
 | File watcher (auto re-index on save) | 🔜 roadmap |
 
 ---
@@ -80,8 +80,8 @@ The agent gets the full call chain in one query instead of reading the entire co
 | Language | Symbols | Call edges |
 |---|---|---|
 | Go | func, method, struct, interface, type, var, const | Yes — cross-package, fully type-resolved via `go/types` |
-| TypeScript / JavaScript | func, arrow fn, class, interface, type, enum, method | No (v1) |
-| Python | def, class | No (v1) |
+| TypeScript / JavaScript | func, arrow fn, class, interface, type, enum, method | Intra-file (heuristic body range) |
+| Python | def, class | Intra-file (heuristic body range) |
 
 Go gets full call graph resolution because we use `golang.org/x/tools/go/packages` with complete type information — so `http.HandleFunc(...)` correctly resolves to `net/http.HandleFunc`, not just a local guess. TypeScript and Python use regex-based extraction with no external dependencies.
 
@@ -281,7 +281,8 @@ Skipped during indexing: `vendor`, `node_modules`, `testdata`, `dist`, `build`, 
 
 ## Limitations (v1)
 
-- Call edges for Go only — TS/JS/Python symbols are indexed but no call graph
+- TS/JS/Python call edges are intra-file only — cross-file calls not resolved (no import tracking)
+- TS/JS/Python body range is heuristic (next symbol line), not exact brace/indent tracking
 - No file watcher — re-run `index` after code changes
 - Go generics: type parameters appear in symbols but instantiation edges not tracked
 - Interface `implements` edges not yet detected (call edges only)
@@ -293,7 +294,8 @@ Skipped during indexing: `vendor`, `node_modules`, `testdata`, `dist`, `build`, 
 
 - [ ] MCP server with 8 tools (search, node, callers, callees, trace, files, status, index)
 - [ ] File watcher for automatic incremental re-index
-- [ ] Call edge heuristics for TypeScript
+- [ ] Cross-file call edges for TS/JS/Python (import resolution)
+- [ ] Improve body range detection with brace-depth (TS/JS) and indent tracking (Python)
 - [ ] `implements` edge detection for Go interfaces
 - [ ] `codegraph_context` — composite tool: search + node + callers + callees in one call
 - [ ] `codegraph_impact` — what symbols break if X changes
